@@ -17,6 +17,12 @@ import {
 } from "@/lib/chat/storage";
 import type { ChatMessage, Conversation } from "@/lib/chat/types";
 
+type AuthUser = {
+  email: string;
+  name: string | null;
+  initials: string;
+};
+
 async function streamChatResponse(
   messages: ChatMessage[],
   model: string,
@@ -73,6 +79,7 @@ async function streamChatResponse(
 
 export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null,
@@ -83,21 +90,39 @@ export function ChatApp() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
+  const userKey = user?.email ?? "";
+
   useEffect(() => {
-    setConversations(loadConversations());
-    setActiveConversationId(loadActiveConversationId());
-    setHydrated(true);
+    fetch("/api/auth/me")
+      .then((response) => response.json())
+      .then((data: AuthUser & { email?: string | null }) => {
+        if (data.email) {
+          setUser({
+            email: data.email,
+            name: data.name ?? null,
+            initials: data.initials ?? data.email.slice(0, 2).toUpperCase(),
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
-    saveConversations(conversations);
-  }, [conversations, hydrated]);
+    if (!userKey) return;
+    setConversations(loadConversations(userKey));
+    setActiveConversationId(loadActiveConversationId(userKey));
+    setHydrated(true);
+  }, [userKey]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    saveActiveConversationId(activeConversationId);
-  }, [activeConversationId, hydrated]);
+    if (!hydrated || !userKey) return;
+    saveConversations(userKey, conversations);
+  }, [conversations, hydrated, userKey]);
+
+  useEffect(() => {
+    if (!hydrated || !userKey) return;
+    saveActiveConversationId(userKey, activeConversationId);
+  }, [activeConversationId, hydrated, userKey]);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId),
@@ -234,6 +259,7 @@ export function ChatApp() {
         conversations={conversations}
         activeConversationId={activeConversationId}
         searchQuery={searchQuery}
+        user={user}
         onToggle={() => setSidebarOpen(false)}
         onNewChat={handleNewChat}
         onSelectConversation={handleSelectConversation}

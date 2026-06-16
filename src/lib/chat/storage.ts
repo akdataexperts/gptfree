@@ -1,12 +1,12 @@
 import type { Conversation } from "@/lib/chat/types";
 
-const STORAGE_KEY = "gptfree-conversations";
-const ACTIVE_KEY = "gptfree-active-conversation";
+const conversationsKey = (userKey: string) => `gptfree-conversations-${userKey}`;
+const activeKey = (userKey: string) => `gptfree-active-conversation-${userKey}`;
 
-export function loadConversations(): Conversation[] {
-  if (typeof window === "undefined") return [];
+export function loadConversations(userKey: string): Conversation[] {
+  if (typeof window === "undefined" || !userKey) return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(conversationsKey(userKey));
     if (!raw) return [];
     return JSON.parse(raw) as Conversation[];
   } catch {
@@ -14,22 +14,28 @@ export function loadConversations(): Conversation[] {
   }
 }
 
-export function saveConversations(conversations: Conversation[]): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+export function saveConversations(
+  userKey: string,
+  conversations: Conversation[],
+): void {
+  if (typeof window === "undefined" || !userKey) return;
+  localStorage.setItem(conversationsKey(userKey), JSON.stringify(conversations));
 }
 
-export function loadActiveConversationId(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACTIVE_KEY);
+export function loadActiveConversationId(userKey: string): string | null {
+  if (typeof window === "undefined" || !userKey) return null;
+  return localStorage.getItem(activeKey(userKey));
 }
 
-export function saveActiveConversationId(id: string | null): void {
-  if (typeof window === "undefined") return;
+export function saveActiveConversationId(
+  userKey: string,
+  id: string | null,
+): void {
+  if (typeof window === "undefined" || !userKey) return;
   if (id) {
-    localStorage.setItem(ACTIVE_KEY, id);
+    localStorage.setItem(activeKey(userKey), id);
   } else {
-    localStorage.removeItem(ACTIVE_KEY);
+    localStorage.removeItem(activeKey(userKey));
   }
 }
 
