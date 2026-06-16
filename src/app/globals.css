@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gpt-bg: #ffffff;
+  --gpt-sidebar-bg: #f9f9f9;
+  --gpt-text: #0d0d0d;
+  --gpt-text-secondary: #676767;
+  --gpt-border: #e5e5e5;
+  --gpt-hover: #ececec;
+  --gpt-input-border: #d9d9d9;
+  --gpt-sidebar-width: 260px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--gpt-bg);
+  color: var(--gpt-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.gpt-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gpt-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 9999px;
+}
+
+.gpt-markdown p {
+  margin: 0 0 0.75rem;
+}
+
+.gpt-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.gpt-markdown ul,
+.gpt-markdown ol {
+  margin: 0 0 0.75rem 1.25rem;
+}
+
+.gpt-markdown pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: #f4f4f4;
+  overflow-x: auto;
+}
+
+.gpt-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.gpt-markdown pre code {
+  font-size: 0.8125rem;
 }
