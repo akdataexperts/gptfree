@@ -53,6 +53,16 @@ export function isGeminiModel(modelId: string): boolean {
   return getModelProvider(modelId) === "google";
 }
 
+export function getModelLabel(modelId: string): string {
+  const option = MODEL_OPTIONS.find((entry) => entry.id === modelId);
+  return option?.label ?? modelId;
+}
+
+export function modelIdentitySystemPrompt(modelId: string): string {
+  const label = getModelLabel(modelId);
+  return `When the user asks what model you are, which AI you are, or what version you are using, respond that you are ${label}.`;
+}
+
 export type QuickAction = {
   id: string;
   label: string;

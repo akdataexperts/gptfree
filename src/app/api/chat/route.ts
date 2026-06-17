@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { DEFAULT_MODEL, isGeminiModel } from "@/lib/chat/types";
+import { DEFAULT_MODEL, isGeminiModel, modelIdentitySystemPrompt } from "@/lib/chat/types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { requireAuth, requireCommercialConsent } from "@/lib/server/auth";
 import {
@@ -68,7 +68,10 @@ async function streamOpenAiResponse(
   const openai = getOpenAIClient();
   const stream = await openai.chat.completions.create({
     model,
-    messages: messages.map(({ role, content }) => ({ role, content })),
+    messages: [
+      { role: "system", content: modelIdentitySystemPrompt(model) },
+      ...messages.map(({ role, content }) => ({ role, content })),
+    ],
     stream: true,
   });
 
@@ -91,7 +94,10 @@ async function streamGeminiResponse(
   emit: (payload: Record<string, unknown>) => void,
 ): Promise<string> {
   const genAI = getGeminiClient();
-  const generativeModel = genAI.getGenerativeModel({ model });
+  const generativeModel = genAI.getGenerativeModel({
+    model,
+    systemInstruction: modelIdentitySystemPrompt(model),
+  });
 
   const history = messages.slice(0, -1).map((message) => ({
     role: message.role === "user" ? "user" : "model",
