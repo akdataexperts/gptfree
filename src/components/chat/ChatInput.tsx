@@ -18,7 +18,8 @@ import {
 
 import {
   DEFAULT_MODEL,
-  MODEL_OPTIONS,
+  GEMINI_MODEL_OPTIONS,
+  GPT_MODEL_OPTIONS,
   QUICK_ACTIONS,
 } from "@/lib/chat/types";
 
@@ -107,14 +108,23 @@ export function ChatInput({
             <select
               value={model}
               onChange={(event) => onModelChange(event.target.value)}
-              className="appearance-none rounded-full border-0 bg-transparent py-1 pl-2 pr-6 text-[14px] text-[#676767] outline-none"
+              className="max-w-[168px] appearance-none truncate rounded-full border-0 bg-transparent py-1 pl-2 pr-6 text-[14px] text-[#676767] outline-none"
               aria-label="Model"
             >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              <optgroup label="GPT">
+                {GPT_MODEL_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Gemini">
+                {GEMINI_MODEL_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
             <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#676767]" strokeWidth={1.75} />
           </div>

@@ -12,6 +12,7 @@ export interface AuthUser {
   firstName: string | null;
   lastName: string | null;
   workosUserId: string;
+  hasCommercialConsent: boolean;
 }
 
 export async function requireAuth(
@@ -57,7 +58,7 @@ export async function requireAuth(
         },
         { onConflict: "email" },
       )
-      .select("id, email, name, first_name, last_name, workos_user_id")
+      .select("id, email, name, first_name, last_name, workos_user_id, commercial_consent_at")
       .single();
 
     if (error || !user) {
@@ -74,6 +75,7 @@ export async function requireAuth(
       firstName: user.first_name,
       lastName: user.last_name,
       workosUserId: user.workos_user_id,
+      hasCommercialConsent: Boolean(user.commercial_consent_at),
     };
   } catch {
     return NextResponse.json({ error: "Authentication required" }, {
@@ -112,4 +114,29 @@ export function getInitials(name: string | null, email: string): string {
 
   const local = email.split("@")[0] ?? email;
   return local.slice(0, 2).toUpperCase();
+}
+
+export async function recordCommercialConsent(userId: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("gptfree_users")
+    .update({
+      commercial_consent_at: now,
+      updated_at: now,
+    })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export function requireCommercialConsent(auth: AuthUser): NextResponse | null {
+  if (auth.hasCommercialConsent) return null;
+
+  return NextResponse.json(
+    { error: "Commercial data usage consent is required" },
+    { status: 403 },
+  );
 }

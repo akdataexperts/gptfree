@@ -4,6 +4,7 @@ import { PanelLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { ChatInput, DEFAULT_MODEL } from "@/components/chat/ChatInput";
+import { ConsentModal } from "@/components/chat/ConsentModal";
 import { MessageList } from "@/components/chat/MessageList";
 import { Sidebar } from "@/components/chat/Sidebar";
 import type {
@@ -16,6 +17,7 @@ type AuthUser = {
   email: string;
   name: string | null;
   initials: string;
+  hasCommercialConsent: boolean;
 };
 
 type StreamMeta = {
@@ -148,6 +150,8 @@ export function ChatApp() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  const [hasCommercialConsent, setHasCommercialConsent] = useState(true);
+  const [consentChecked, setConsentChecked] = useState(false);
 
   useEffect(() => {
     async function bootstrap() {
@@ -162,9 +166,14 @@ export function ChatApp() {
           email: me.email,
           name: me.name ?? null,
           initials: me.initials ?? me.email.slice(0, 2).toUpperCase(),
+          hasCommercialConsent: me.hasCommercialConsent ?? false,
         });
+        setHasCommercialConsent(me.hasCommercialConsent ?? false);
+        setConsentChecked(true);
 
-        setConversations(await fetchConversations());
+        if (me.hasCommercialConsent) {
+          setConversations(await fetchConversations());
+        }
       } finally {
         setHydrated(true);
       }
@@ -279,12 +288,31 @@ export function ChatApp() {
     refreshConversations,
   ]);
 
+  const handleAcceptConsent = useCallback(async () => {
+    const response = await fetch("/api/auth/consent", { method: "POST" });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      throw new Error(payload?.error ?? "Failed to save consent");
+    }
+
+    setHasCommercialConsent(true);
+    setUser((current) =>
+      current ? { ...current, hasCommercialConsent: true } : current,
+    );
+    setConversations(await fetchConversations());
+  }, []);
+
   if (!hydrated) {
     return <div className="h-full bg-white" />;
   }
 
   return (
     <div className="flex h-full bg-white">
+      {!hasCommercialConsent && consentChecked ? (
+        <ConsentModal onAccept={handleAcceptConsent} />
+      ) : null}
       <Sidebar
         open={sidebarOpen}
         conversations={conversations}

@@ -1,15 +1,11 @@
 "use client";
 
 import {
-  BookOpen,
-  Folder,
   LayoutGrid,
   LogOut,
-  MoreHorizontal,
   PanelLeft,
   PenLine,
   Search,
-  Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -33,15 +29,6 @@ type SidebarProps = {
   onSelectConversation: (id: string) => void;
   onSearchChange: (query: string) => void;
 };
-
-const NAV_ITEMS = [
-  { icon: Search, label: "Search chats" },
-  { icon: BookOpen, label: "Library" },
-  { icon: Folder, label: "Projects" },
-  { icon: LayoutGrid, label: "Apps" },
-  { icon: Sparkles, label: "Codex" },
-  { icon: MoreHorizontal, label: "More" },
-] as const;
 
 function displayName(user: SidebarUser | null): string {
   if (!user) return "Guest";
@@ -105,22 +92,17 @@ export function Sidebar({
       </div>
 
       <nav className="px-2">
-        {NAV_ITEMS.map(({ icon: Icon, label }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => {
-              if (label === "Search chats") {
-                setSearchOpen((value) => !value);
-                onSearchChange("");
-              }
-            }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] text-[#0d0d0d] transition-colors hover:bg-[#ececec]"
-          >
-            <Icon className="h-[18px] w-[18px] text-[#676767]" strokeWidth={1.75} />
-            {label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => {
+            setSearchOpen((value) => !value);
+            onSearchChange("");
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[14px] text-[#0d0d0d] transition-colors hover:bg-[#ececec]"
+        >
+          <Search className="h-[18px] w-[18px] text-[#676767]" strokeWidth={1.75} />
+          Search chats
+        </button>
       </nav>
 
       {searchOpen ? (

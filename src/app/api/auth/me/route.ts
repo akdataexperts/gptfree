@@ -12,5 +12,6 @@ export async function GET(request: NextRequest) {
     email: auth.email,
     name: auth.name,
     initials: getInitials(auth.name, auth.email),
+    hasCommercialConsent: auth.hasCommercialConsent,
   });
 }
