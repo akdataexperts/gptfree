@@ -1,21 +1,16 @@
 "use client";
 
 import { PanelLeft } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ChatInput, DEFAULT_MODEL } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { Sidebar } from "@/components/chat/Sidebar";
-import {
-  createConversationId,
-  createMessageId,
-  loadActiveConversationId,
-  loadConversations,
-  saveActiveConversationId,
-  saveConversations,
-  titleFromMessage,
-} from "@/lib/chat/storage";
-import type { ChatMessage, Conversation } from "@/lib/chat/types";
+import type {
+  ChatMessage,
+  Conversation,
+  ConversationSummary,
+} from "@/lib/chat/types";
 
 type AuthUser = {
   email: string;
@@ -23,18 +18,22 @@ type AuthUser = {
   initials: string;
 };
 
+type StreamMeta = {
+  conversationId: string;
+  assistantMessageId: string;
+};
+
 async function streamChatResponse(
-  messages: ChatMessage[],
+  conversationId: string | null,
+  message: string,
   model: string,
-  onDelta: (text: string) => void,
-): Promise<void> {
+  onMeta: (meta: StreamMeta) => void,
+  onDelta: (assistantMessageId: string, text: string) => void,
+): Promise<StreamMeta> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages: messages.map(({ role, content }) => ({ role, content })),
-    }),
+    body: JSON.stringify({ conversationId, message, model }),
   });
 
   if (!response.ok) {
@@ -51,6 +50,7 @@ async function streamChatResponse(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let meta: StreamMeta | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -63,90 +63,159 @@ async function streamChatResponse(
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
       const payload = line.slice(6).trim();
-      if (payload === "[DONE]") return;
+      if (payload === "[DONE]") {
+        if (!meta) throw new Error("Stream ended without metadata");
+        return meta;
+      }
 
       try {
-        const parsed = JSON.parse(payload) as { text?: string; error?: string };
-        if (parsed.error) throw new Error(parsed.error);
-        if (parsed.text) onDelta(parsed.text);
+        const parsed = JSON.parse(payload) as {
+          type?: string;
+          text?: string;
+          error?: string;
+          conversationId?: string;
+          assistantMessageId?: string;
+        };
+
+        if (parsed.type === "error" || parsed.error) {
+          throw new Error(parsed.error ?? "Stream failed");
+        }
+
+        if (
+          parsed.type === "meta" &&
+          parsed.conversationId &&
+          parsed.assistantMessageId
+        ) {
+          meta = {
+            conversationId: parsed.conversationId,
+            assistantMessageId: parsed.assistantMessageId,
+          };
+          onMeta(meta);
+          continue;
+        }
+
+        if (parsed.type === "delta" && parsed.text && meta) {
+          onDelta(meta.assistantMessageId, parsed.text);
+        }
       } catch (error) {
         if (error instanceof SyntaxError) continue;
         throw error;
       }
     }
   }
+
+  if (!meta) {
+    throw new Error("Stream ended without metadata");
+  }
+
+  return meta;
+}
+
+async function fetchConversations(): Promise<ConversationSummary[]> {
+  const response = await fetch("/api/conversations");
+  if (!response.ok) {
+    throw new Error("Failed to load conversations");
+  }
+
+  const payload = (await response.json()) as {
+    conversations: ConversationSummary[];
+  };
+
+  return payload.conversations;
+}
+
+async function fetchConversation(conversationId: string): Promise<Conversation> {
+  const response = await fetch(`/api/conversations/${conversationId}`);
+  if (!response.ok) {
+    throw new Error("Failed to load conversation");
+  }
+
+  const payload = (await response.json()) as { conversation: Conversation };
+  return payload.conversation;
 }
 
 export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null,
   );
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [searchQuery, setSearchQuery] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-
-  const userKey = user?.email ?? "";
+  const [loadingConversation, setLoadingConversation] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((response) => response.json())
-      .then((data: AuthUser & { email?: string | null }) => {
-        if (data.email) {
-          setUser({
-            email: data.email,
-            name: data.name ?? null,
-            initials: data.initials ?? data.email.slice(0, 2).toUpperCase(),
-          });
-        }
-      })
-      .catch(() => {});
+    async function bootstrap() {
+      try {
+        const meResponse = await fetch("/api/auth/me");
+        if (!meResponse.ok) return;
+
+        const me = (await meResponse.json()) as AuthUser & { email?: string };
+        if (!me.email) return;
+
+        setUser({
+          email: me.email,
+          name: me.name ?? null,
+          initials: me.initials ?? me.email.slice(0, 2).toUpperCase(),
+        });
+
+        setConversations(await fetchConversations());
+      } finally {
+        setHydrated(true);
+      }
+    }
+
+    void bootstrap();
   }, []);
 
   useEffect(() => {
-    if (!userKey) return;
-    setConversations(loadConversations(userKey));
-    setActiveConversationId(loadActiveConversationId(userKey));
-    setHydrated(true);
-  }, [userKey]);
+    if (!activeConversationId) {
+      setMessages([]);
+      return;
+    }
 
-  useEffect(() => {
-    if (!hydrated || !userKey) return;
-    saveConversations(userKey, conversations);
-  }, [conversations, hydrated, userKey]);
+    const conversationId = activeConversationId;
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!hydrated || !userKey) return;
-    saveActiveConversationId(userKey, activeConversationId);
-  }, [activeConversationId, hydrated, userKey]);
+    async function loadConversation() {
+      setLoadingConversation(true);
+      try {
+        const conversation = await fetchConversation(conversationId);
+        if (!cancelled) {
+          setMessages(conversation.messages);
+        }
+      } catch {
+        if (!cancelled) {
+          setMessages([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingConversation(false);
+        }
+      }
+    }
 
-  const activeConversation = useMemo(
-    () => conversations.find((conversation) => conversation.id === activeConversationId),
-    [conversations, activeConversationId],
-  );
+    void loadConversation();
 
-  const messages = activeConversation?.messages ?? [];
-  const isEmptyState = messages.length === 0;
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversationId]);
 
-  const updateConversation = useCallback(
-    (conversationId: string, updater: (conversation: Conversation) => Conversation) => {
-      setConversations((current) =>
-        current.map((conversation) =>
-          conversation.id === conversationId
-            ? updater(conversation)
-            : conversation,
-        ),
-      );
-    },
-    [],
-  );
+  const isEmptyState = messages.length === 0 && !loadingConversation;
+
+  const refreshConversations = useCallback(async () => {
+    setConversations(await fetchConversations());
+  }, []);
 
   const handleNewChat = useCallback(() => {
     setActiveConversationId(null);
+    setMessages([]);
     setInput("");
     setSearchQuery("");
   }, []);
@@ -164,88 +233,67 @@ export function ChatApp() {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
 
+    const tempAssistantId = crypto.randomUUID();
     const userMessage: ChatMessage = {
-      id: createMessageId(),
+      id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
     };
-
-    let conversationId = activeConversationId;
-    const assistantMessageId = createMessageId();
     const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
+      id: tempAssistantId,
       role: "assistant",
       content: "",
     };
 
-    if (!conversationId) {
-      conversationId = createConversationId();
-      const newConversation: Conversation = {
-        id: conversationId,
-        title: titleFromMessage(trimmed),
-        messages: [userMessage, assistantMessage],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      setConversations((current) => [newConversation, ...current]);
-      setActiveConversationId(conversationId);
-    } else {
-      updateConversation(conversationId, (conversation) => ({
-        ...conversation,
-        title:
-          conversation.messages.length === 0
-            ? titleFromMessage(trimmed)
-            : conversation.title,
-        messages: [...conversation.messages, userMessage, assistantMessage],
-        updatedAt: Date.now(),
-      }));
-    }
-
+    setMessages((current) => [...current, userMessage, assistantMessage]);
     setInput("");
     setIsStreaming(true);
 
     try {
-      const currentMessages = conversationId
-        ? [
-            ...(conversations.find((conversation) => conversation.id === conversationId)
-              ?.messages ?? []),
-            userMessage,
-          ]
-        : [userMessage];
+      const meta = await streamChatResponse(
+        activeConversationId,
+        trimmed,
+        model,
+        (streamMeta) => {
+          setActiveConversationId(streamMeta.conversationId);
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === tempAssistantId
+                ? { ...message, id: streamMeta.assistantMessageId }
+                : message,
+            ),
+          );
+        },
+        (assistantMessageId, delta) => {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantMessageId
+                ? { ...message, content: message.content + delta }
+                : message,
+            ),
+          );
+        },
+      );
 
-      await streamChatResponse(currentMessages, model, (delta) => {
-        updateConversation(conversationId!, (conversation) => ({
-          ...conversation,
-          messages: conversation.messages.map((message) =>
-            message.id === assistantMessageId
-              ? { ...message, content: message.content + delta }
-              : message,
-          ),
-          updatedAt: Date.now(),
-        }));
-      });
+      setActiveConversationId(meta.conversationId);
+      await refreshConversations();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong";
-      updateConversation(conversationId!, (conversation) => ({
-        ...conversation,
-        messages: conversation.messages.map((entry) =>
-          entry.id === assistantMessageId
-            ? { ...entry, content: message }
-            : entry,
+      setMessages((current) =>
+        current.map((entry) =>
+          entry.id === tempAssistantId ? { ...entry, content: message } : entry,
         ),
-        updatedAt: Date.now(),
-      }));
+      );
     } finally {
       setIsStreaming(false);
     }
   }, [
     activeConversationId,
-    conversations,
     input,
     isStreaming,
     model,
-    updateConversation,
+    refreshConversations,
   ]);
 
   if (!hydrated) {
@@ -300,12 +348,18 @@ export function ChatApp() {
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto gpt-scrollbar">
-              <MessageList messages={messages} isStreaming={isStreaming} />
+              {loadingConversation ? (
+                <div className="flex h-full items-center justify-center text-[14px] text-[#676767]">
+                  Loading conversation...
+                </div>
+              ) : (
+                <MessageList messages={messages} isStreaming={isStreaming} />
+              )}
             </div>
             <ChatInput
               value={input}
               model={model}
-              disabled={isStreaming}
+              disabled={isStreaming || loadingConversation}
               onChange={setInput}
               onSubmit={handleSubmit}
               onModelChange={setModel}

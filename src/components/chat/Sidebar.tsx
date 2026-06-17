@@ -14,7 +14,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { handleSignOut } from "@/app/auth/actions";
-import type { Conversation } from "@/lib/chat/types";
+import type { ConversationSummary } from "@/lib/chat/types";
 
 type SidebarUser = {
   email: string;
@@ -24,7 +24,7 @@ type SidebarUser = {
 
 type SidebarProps = {
   open: boolean;
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   activeConversationId: string | null;
   searchQuery: string;
   user: SidebarUser | null;

@@ -6,12 +6,15 @@ export type ChatMessage = {
   content: string;
 };
 
-export type Conversation = {
+export type ConversationSummary = {
   id: string;
   title: string;
-  messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+};
+
+export type Conversation = ConversationSummary & {
+  messages: ChatMessage[];
 };
 
 export type ModelOption = {

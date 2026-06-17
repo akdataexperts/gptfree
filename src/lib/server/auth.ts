@@ -1,0 +1,115 @@
+import "server-only";
+
+import { authkit } from "@workos-inc/authkit-nextjs";
+import { NextRequest, NextResponse } from "next/server";
+
+import { supabase } from "@/lib/server/supabase-server";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  workosUserId: string;
+}
+
+export async function requireAuth(
+  request: NextRequest,
+): Promise<AuthUser | NextResponse> {
+  try {
+    const { session } = await authkit(request);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Authentication required" }, {
+        status: 401,
+      });
+    }
+
+    const {
+      email,
+      firstName,
+      lastName,
+      id: workosUserId,
+    } = session.user;
+
+    const profilePictureUrl =
+      "profilePictureUrl" in session.user &&
+      typeof session.user.profilePictureUrl === "string"
+        ? session.user.profilePictureUrl
+        : null;
+
+    const name = [firstName, lastName].filter(Boolean).join(" ") || null;
+    const now = new Date().toISOString();
+
+    const { data: user, error } = await supabase
+      .from("gptfree_users")
+      .upsert(
+        {
+          email,
+          name,
+          first_name: firstName ?? null,
+          last_name: lastName ?? null,
+          workos_user_id: workosUserId,
+          profile_picture_url: profilePictureUrl ?? null,
+          avatar_url: profilePictureUrl ?? null,
+          last_sign_in_at: now,
+          updated_at: now,
+        },
+        { onConflict: "email" },
+      )
+      .select("id, email, name, first_name, last_name, workos_user_id")
+      .single();
+
+    if (error || !user) {
+      console.error("[gptfree auth] Failed to upsert user:", error?.message);
+      return NextResponse.json({ error: "Failed to sync user profile" }, {
+        status: 500,
+      });
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      workosUserId: user.workos_user_id,
+    };
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, {
+      status: 401,
+    });
+  }
+}
+
+export async function recordVisit(
+  user: AuthUser,
+  request: NextRequest,
+  path = "/",
+): Promise<void> {
+  const userAgent = request.headers.get("user-agent");
+
+  const { error } = await supabase.from("gptfree_visits").insert({
+    user_id: user.id,
+    email: user.email,
+    path,
+    user_agent: userAgent,
+  });
+
+  if (error) {
+    console.error("[gptfree visits] Failed to record visit:", error.message);
+  }
+}
+
+export function getInitials(name: string | null, email: string): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  const local = email.split("@")[0] ?? email;
+  return local.slice(0, 2).toUpperCase();
+}
