@@ -176,38 +176,11 @@ export function ChatApp() {
   useEffect(() => {
     if (!activeConversationId) {
       setMessages([]);
-      return;
     }
-
-    const conversationId = activeConversationId;
-    let cancelled = false;
-
-    async function loadConversation() {
-      setLoadingConversation(true);
-      try {
-        const conversation = await fetchConversation(conversationId);
-        if (!cancelled) {
-          setMessages(conversation.messages);
-        }
-      } catch {
-        if (!cancelled) {
-          setMessages([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingConversation(false);
-        }
-      }
-    }
-
-    void loadConversation();
-
-    return () => {
-      cancelled = true;
-    };
   }, [activeConversationId]);
 
-  const isEmptyState = messages.length === 0 && !loadingConversation;
+  const isEmptyState =
+    messages.length === 0 && !loadingConversation && !isStreaming;
 
   const refreshConversations = useCallback(async () => {
     setConversations(await fetchConversations());
@@ -220,9 +193,19 @@ export function ChatApp() {
     setSearchQuery("");
   }, []);
 
-  const handleSelectConversation = useCallback((conversationId: string) => {
+  const handleSelectConversation = useCallback(async (conversationId: string) => {
     setActiveConversationId(conversationId);
     setInput("");
+    setLoadingConversation(true);
+
+    try {
+      const conversation = await fetchConversation(conversationId);
+      setMessages(conversation.messages);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoadingConversation(false);
+    }
   }, []);
 
   const handleQuickAction = useCallback((prompt: string) => {
