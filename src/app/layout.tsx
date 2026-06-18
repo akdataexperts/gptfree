@@ -4,10 +4,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "GPTfree",
   description: "GPTfree",
-  icons: {
-    icon: "/favicon.jpeg",
-    apple: "/favicon.jpeg",
-  },
 };
 
 export default function RootLayout({
