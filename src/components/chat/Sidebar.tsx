@@ -68,7 +68,7 @@ export function Sidebar({
     >
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
         <div className="px-2 text-[15px] font-semibold tracking-[-0.01em] text-[#0d0d0d]">
-          ChatGPT
+          GPTfree
         </div>
         <button
           type="button"

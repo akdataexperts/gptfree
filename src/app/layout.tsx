@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GPTFree",
-  description: "GPTFree",
+  title: "GPTfree",
+  description: "GPTfree",
+  icons: {
+    icon: "/favicon.jpeg",
+    apple: "/favicon.jpeg",
+  },
 };
 
 export default function RootLayout({

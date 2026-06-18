@@ -66,7 +66,7 @@ export function ConsentModal({ onAccept }: ConsentModalProps) {
         </h2>
 
         <p className="mt-4 text-[15px] leading-[1.65] text-[#9ca3af]">
-          GPT Free is free because your conversations help fund AI research. By
+          GPTfree is free because your conversations help fund AI research. By
           continuing, you agree that your prompts may be collected, anonymized,
           and used for{" "}
           <span className="font-semibold text-white">
